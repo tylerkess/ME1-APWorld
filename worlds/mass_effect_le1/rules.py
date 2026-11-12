@@ -19,7 +19,7 @@ NEEDS_SQUADMATE = {
 TWO_SQUADMATES = HasFromList(*data.SQUAD, count=2)
 NEEDS_TWO_SQUADMATES = frozenset({
     "Citadel: Jahleed's Fears: Started", "Citadel: Jahleed's Fears: Completed",
-    "Citadel: Rita's Sister", "Citadel: Rita's Sister: Started", "Citadel: Rita's Sister: Completed",
+    "Citadel: Rita's Sister: Started", "Citadel: Rita's Sister: Completed",
 })
 # Quests whose setting line is only spoken by a squadmate in the party (one line variant per squadmate).
 NEEDS_ANY_SQUADMATE = {

@@ -46,7 +46,7 @@ class MassEffectLE1World(World):
                              and loc.region not in data.NO_RETURN_REGIONS)
         squad_items = len(data.SQUAD) - (len(data.HUMAN_SQUAD) if self.options.human_squad_at_citadel else 0)
         fixed_items = squad_items + len(data.COORDINATES) - (0 if bdts else 1) + int(bool(self.options.mako_shuffled))
-        room = location_count - fixed_items - MIN_FILLER_SLOTS
+        room = max(0, location_count - fixed_items - MIN_FILLER_SLOTS)
 
         total = self.options.fragments_total
         if total.value > room:

@@ -23,9 +23,9 @@ class TestDefaults(MassEffectLE1TestBase):
         self.collect(self.multiworld.get_location(name, self.player).item)
 
     def test_act1_gates_citadel_side_content(self) -> None:
-        self.assertFalse(self.can_reach_location("Citadel: Asari Consort"))
+        self.assertFalse(self.can_reach_location("Citadel: Asari Consort: Started"))
         self.collect_event(EVENT_ACT1)
-        self.assertTrue(self.can_reach_location("Citadel: Asari Consort"))
+        self.assertTrue(self.can_reach_location("Citadel: Asari Consort: Started"))
 
     def test_eden_prime_needs_only_coordinates(self) -> None:
         self.assertFalse(self.can_reach_region(Region.EDEN_PRIME.value))
@@ -210,9 +210,9 @@ class TestFragmentClamping(MassEffectLE1TestBase):
                "aid_stations": False, "shop_slots": 0}
 
     def test_fragments_clamped_to_location_room(self) -> None:
-        # 23 locations - 1 on Ilos (no own progression) - 6 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 5
-        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 5)
-        self.assertEqual(self.world.fragments_required, 5)
+        # 17 locations - 1 on Ilos (no own progression) - 6 squad - 6 coordinates - 1 Mako - 4 reserved filler slots < 0: none
+        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 0)
+        self.assertEqual(self.world.fragments_required, 0)
 
 
 class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
@@ -235,8 +235,8 @@ class TestHumanSquadAtCitadel(MassEffectLE1TestBase):
         self.assertTrue(self.can_reach_region(Region.VIRMIRE.value))
 
     def test_freed_slots_go_to_fragments_room(self) -> None:
-        # 23 locations - 1 on Ilos (no own progression) - 4 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 7
-        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 7)
+        # 17 locations - 1 on Ilos (no own progression) - 4 squad - 6 coordinates - 1 Mako - 4 reserved filler slots = 1
+        self.assertEqual(len(self.get_items_by_name(FRAGMENT)), 1)
 
 
 class TestGearDraw(MassEffectLE1TestBase):
@@ -488,7 +488,7 @@ class TestJournalsanity(MassEffectLE1TestBase):
         self.assertTrue(self.can_reach_location("Wrex: Family Armor: Started"))
 
     def test_jahleed_and_rita_need_two_squadmates(self) -> None:
-        names = ("Citadel: Jahleed's Fears: Started", "Citadel: Jahleed's Fears: Completed", "Citadel: Rita's Sister",
+        names = ("Citadel: Jahleed's Fears: Started", "Citadel: Jahleed's Fears: Completed",
                  "Citadel: Rita's Sister: Started", "Citadel: Rita's Sister: Completed")
         self.collect(self.multiworld.get_location(EVENT_ACT1, self.player).item)
         self.collect_by_name("Garrus Vakarian")

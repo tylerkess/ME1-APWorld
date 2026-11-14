@@ -268,6 +268,17 @@ def relayout(pkg: Package, added_names: list[str], replaced: dict[int, bytes]) -
     return bytes(head + body + d[cursor:])
 
 
+def append_exports(pkg: Package, replaced: dict[int, bytes]) -> bytes:
+    """The package image with export data replaced (export index -> bytes) by appending it at the end of the image;
+    no other byte moves, so offsets stored inside export data (bulk data) stay right. Write it with write_image."""
+    image = bytearray(pkg.image)
+    by_index = {e.index: e for e in pkg.exports}
+    for index, data in replaced.items():
+        struct.pack_into("<ii", image, by_index[index].entry_offset + 32, len(data), len(image))
+        image += data
+    return bytes(image)
+
+
 def add_names(pkg: Package, names: list[str]) -> list[str]:
     """The names not yet in the package, in order (pass them to relayout)."""
     return [n for n in dict.fromkeys(names) if n not in pkg.names]
@@ -276,8 +287,19 @@ def add_names(pkg: Package, names: list[str]) -> list[str]:
 CHUNK_SIZE = 0x100000  # uncompressed bytes per chunk when chunks are laid out anew
 
 
+def _only_appended(pkg: Package, image: bytes) -> bool:
+    """Whether `image` is pkg's image with bytes appended (only the export table may differ before its end)."""
+    if len(image) < len(pkg.image) or not pkg.exports:
+        return False
+    last = pkg.exports[-1].entry_offset
+    table_end = last + 48 + 4 * struct.unpack_from("<i", pkg.image, last + 44)[0] + 16 + 4  # as _parse_tables
+    start = pkg.header.export_off
+    return image[:start] == pkg.image[:start] and image[table_end:len(pkg.image)] == pkg.image[table_end:]
+
+
 def write_image(pkg: Package, image: bytes, path: str, dll: str) -> None:
-    """Write an image whose size may differ from pkg's: uncompressed as is, or compressed in new chunks."""
+    """Write an image whose size may differ from pkg's: uncompressed as is, or compressed. An image that only appends
+    to pkg's (append_exports) keeps pkg's chunks and adds chunks for the appended bytes; any other is chunked anew."""
     h, raw = pkg.header, pkg.raw
     if h.compression == 0:
         open(path, "wb").write(image)
@@ -285,13 +307,23 @@ def write_image(pkg: Package, image: bytes, path: str, dll: str) -> None:
     header_end = h.chunks[0][0]  # the image header (no chunk table) ends where the first chunk's data starts
     tail = image[h.chunk_table_off:header_end]
     block_size, _ = _chunk_blocks(raw, h.chunks[0][2])
-    ranges = [(start, min(start + CHUNK_SIZE, len(image))) for start in range(header_end, len(image), CHUNK_SIZE)]
-    blocks = [[image[b:min(b + block_size, end)] for b in range(start, end, block_size)] for start, end in ranges]
+    old_end = max(u + s for u, s, _, _ in h.chunks)
+    if old_end == len(pkg.image) and _only_appended(pkg, image):
+        # Keep the game's chunk ranges (they end on export boundaries; the game hangs loading a large package
+        # whose exports straddle chunks) and put the appended bytes in chunks of their own.
+        ranges = [(u, u + s) for u, s, _, _ in h.chunks]
+        sizes = [_chunk_blocks(raw, c[2])[0] for c in h.chunks]
+        first_new = old_end
+    else:
+        ranges, sizes, first_new = [], [], header_end
+    ranges += [(start, min(start + CHUNK_SIZE, len(image))) for start in range(first_new, len(image), CHUNK_SIZE)]
+    sizes += [block_size] * (len(ranges) - len(sizes))
+    blocks = [[image[b:min(b + bs, end)] for b in range(start, end, bs)] for (start, end), bs in zip(ranges, sizes)]
     encoded = iter(_run_oodle("compress", [(b, 0) for chunk in blocks for b in chunk], dll))
     out = bytearray(image[:h.chunk_table_off - 4]) + struct.pack("<I", len(ranges)) + bytearray(16 * len(ranges)) + tail
-    for i, ((start, end), chunk) in enumerate(zip(ranges, blocks)):
+    for i, ((start, end), chunk, bs) in enumerate(zip(ranges, blocks, sizes)):
         packed = [next(encoded) for _ in chunk]
-        body = struct.pack("<4I", TAG, block_size, sum(map(len, packed)), end - start)
+        body = struct.pack("<4I", TAG, bs, sum(map(len, packed)), end - start)
         body += b"".join(struct.pack("<II", len(c), len(u)) for c, u in zip(packed, chunk)) + b"".join(packed)
         struct.pack_into("<4I", out, h.chunk_table_off + 16 * i, start, end - start, len(out), len(body))
         out += body

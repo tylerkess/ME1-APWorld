@@ -45,7 +45,7 @@ NONCE_PLOT_INT = 2006  # bridge v12 NONCE: marks the save the client checks befo
 # Build identity (R13): the oldest bridge and mod this client works with. The bridge answers PING with its version; the
 # release writes the mod version into DLC_MOD_ArchipelagoME1\ArchipelagoME1.version, which the bridge reads (MODVER).
 BRIDGE_VERSION = 13  # v13: a GIVE into a full inventory answers ERR full and waits (v12 lost the item)
-MOD_VERSION = "0.2.10"
+MOD_VERSION = "0.2.12"
 # An unbound save is bound to the seed only if it has at most this many checks done (a fresh career): a save from
 # another seed or a vanilla save loaded by mistake would otherwise send its progress as checks. The open start alone
 # sets 6 (live 2026-10-26: the Started checks of Feros, Liara, Noveria, UNC Cerberus, Hostage and Rogue VI).

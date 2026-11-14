@@ -1,16 +1,17 @@
 """BioStateEventMap (plot transition map) binary: read its elements, retarget bool writes in place, add transitions.
 
 Layout after the export's net index and empty property list: int count, then per transition: int id, int version,
-int element count, elements. An element starts with its type: 0 bool (5 ints: type, version, bool, value, useParam),
-4 int (6), 7 function call (9), 8 substate bool (8 ints, the last a sibling count, then that many ints).
+int element count, elements. An element starts with its type (LEX BioStateEventMap.cs): 0 bool (5 ints: type, version,
+bool, value, useParam), 1 consequence (3), 2 float (6), 3 function call (9), 4 int (6), 5-7 local bool, float and int
+(9), 8 substate bool (8 ints, the last a sibling count, then that many ints). A ConsequenceMap has the same layout.
 """
 from __future__ import annotations
 
 import struct
 from dataclasses import dataclass
 
-BOOL, INT, FUNCTION, SUBSTATE = 0, 4, 7, 8
-FIXED_INTS = {BOOL: 5, INT: 6, FUNCTION: 9}
+BOOL, SUBSTATE = 0, 8
+FIXED_INTS = {BOOL: 5, 1: 3, 2: 6, 3: 9, 4: 6, 5: 9, 6: 9, 7: 9}  # element type -> ints
 
 
 @dataclass(frozen=True)

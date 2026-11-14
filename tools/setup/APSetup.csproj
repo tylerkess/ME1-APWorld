@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>Mass Effect AP Setup</AssemblyName>
     <RootNamespace>APSetup</RootNamespace>
-    <Version>0.3.6</Version>
+    <Version>0.3.7</Version>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
   </PropertyGroup>
   <PropertyGroup>

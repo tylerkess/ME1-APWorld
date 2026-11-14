@@ -27,6 +27,13 @@ Patches (squadmates join only through Archipelago items):
   bool 20103, and the induction runs it right after the asari Councilor's look (BOOL_TRANSITIONS, TRANSITION_NODES).
 - Virmire transmission (PlotManagerAutoAPME1.pcc): mod transition 20104 does what the Council's Virmire transmission
   does (opens Virmire, starts its quest and journal entry); the client runs it when the coordinates arrive.
+
+Crash fix:
+- Bring Down the Sky outcomes (BIOC_Materials.pcc, PlotManagerAuto.ConsequenceMap): the DLC's OutcomeMap names three
+  outcomes (BDTS_OUTCOMES) that no ConsequenceMap defines. Looking one up walks every registered ConsequenceMap, and
+  with mods installed the last entry of that list can be invalid, which crashed the game on examining a body on
+  Asteroid X57. Each one is added to the game's map as an empty consequence, so the lookup stops at the first map;
+  the game does nothing for them either way.
 """
 from __future__ import annotations
 
@@ -82,6 +89,38 @@ def patch_transition_map(src: str, dest: str, export_name: str, dll: str) -> lis
     if check.image != pkg.image:
         raise SystemExit(f"{dest}: written package does not match the patched image")
     return changed
+
+
+CONSEQUENCES = ("BIOC_Materials.pcc", "PlotManagerAuto.ConsequenceMap")  # in the mod (patch_transition_map writes it)
+# Outcomes of Bring Down the Sky's OutcomeMap with no consequence in any map: 6015 Finished_Plot (mission end),
+# 6086 Found_a_body (the bodies and the radio log), 6153 Found_All.
+BDTS_OUTCOMES = (6015, 6086, 6153)
+
+
+def with_empty_consequences(data: bytes, start: int) -> bytes:
+    """The ConsequenceMap (`data` from `start` to its end) with every missing BDTS_OUTCOMES entry added, empty."""
+    for outcome in BDTS_OUTCOMES:
+        if outcome not in transitions.transition_ids(data, start):
+            data = transitions.add_transition(data, start, outcome, [])
+    return data
+
+
+def add_empty_consequences(path: str, dll: str) -> list[int]:
+    """Add BDTS_OUTCOMES to the ConsequenceMap of the mod's `path`; returns the outcomes added."""
+    pkg = le1pkg.read(path, dll)
+    export = pkg.find("BioStateEventMap", CONSEQUENCES[1])
+    data = bytes(pkg.image[export.offset:export.offset + export.size])
+    start = 4 + 8  # net index, empty property list
+    before = transitions.transition_ids(data, start)
+    patched = with_empty_consequences(data, start)
+    if patched != data:
+        # Appended, not relaid out: the package holds textures whose bulk data offsets must not move.
+        le1pkg.write_image(pkg, le1pkg.append_exports(pkg, {export.index: patched}), path, dll)
+        check = le1pkg.read(path, dll)
+        written = check.find("BioStateEventMap", CONSEQUENCES[1])
+        if bytes(check.image[written.offset:written.offset + written.size]) != patched:
+            raise SystemExit(f"{path}: {CONSEQUENCES[1]} does not read back")
+    return [o for o in BDTS_OUTCOMES if o not in before]
 
 
 def override_rows(path: str, export_name: str, rows: dict[int, dict[str, object]], dll: str) -> None:
@@ -474,6 +513,8 @@ def main(game: str, base: str | None = None) -> None:
         changed = patch_transition_map(src, os.path.join(mod_cooked, package), export_name, dll)
         ids = sorted({w.transition for w in changed})
         print(f"{package}: {len(changed)} in-party writes retargeted (transitions {ids})")
+    added = add_empty_consequences(os.path.join(mod_cooked, CONSEQUENCES[0]), dll)
+    print(f"{CONSEQUENCES[0]}: empty consequences added: {added or 'none (already there)'}")
     rows = patch_shop_draws(os.path.join(mod_cooked, SHOP_PACKAGE), os.path.join(cooked, "Engine.pcc"), dll)
     print(f"{SHOP_PACKAGE}: shop draws " + ", ".join(f"{r['Name']} {r['drops']}" for r in rows.values()))
     dropped = drop_vanilla_planet_rows(os.path.join(mod_cooked, PLANET_PACKAGE), os.path.join(cooked, ENGINE_PACKAGE), dll)

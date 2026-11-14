@@ -34,7 +34,7 @@ class TestTransitions(unittest.TestCase):
             (1992, [[0, 0, 3817, 1, 0], [0, 0, 3939, 1, 0]]),  # in squad + in party
             (2223, [[0, 0, 3939, 0, 0]]),  # leaves the party: kept
             (4057, [[4, 0, 57, 1, 0, 1]]),  # int element
-            (188, [[7, 0, 1, 4, 2, 0, 5659, 0, 0]]),  # function element
+            (188, [[7, 0, 1, 4, 2, 0, 5659, 0, 0]]),  # local int element
             (1212, [[8, 0, 3944, 1, 0, 0, 3203, 2, 3205, 3207]]),  # substate with two siblings
         )
         before = bytes(data)
@@ -46,7 +46,20 @@ class TestTransitions(unittest.TestCase):
 
     def test_unknown_element_type_stops(self) -> None:
         with self.assertRaises(ValueError):
-            transitions.bool_writes(transition_map((1, [[5, 0, 0, 0, 0]])), 0)
+            transitions.bool_writes(transition_map((1, [[9, 0, 0, 0, 0]])), 0)
+
+
+class TestEmptyConsequences(unittest.TestCase):
+    def test_adds_the_missing_outcomes_once(self) -> None:
+        start = 12
+        data = b"\x00" * start + transition_map(
+            (4925, [[3, 0, 5664, 0, 745, 0, 2976, 0, 5]]),  # function element
+            (4392, [[1, 0, 77], [2, 0, 5, 0, 0, 0]]),  # consequence and float elements
+        )
+        out = build_mod.with_empty_consequences(data, start)
+        self.assertEqual(transitions.transition_ids(out, start), [4925, 4392, *build_mod.BDTS_OUTCOMES])
+        self.assertTrue(all(transitions.transitions_elements(out, start)[t] == [] for t in build_mod.BDTS_OUTCOMES))
+        self.assertEqual(build_mod.with_empty_consequences(out, start), out)
 
 
 class TestTwoDA(unittest.TestCase):
@@ -171,6 +184,23 @@ class TestGamePackage(unittest.TestCase):
             out = os.path.join(tmp, "PlotManager.pcc")
             le1pkg.write(pkg, out, dll)
             self.assertEqual(le1pkg.read(out, dll).image, pkg.image)
+
+    def test_append_exports_moves_nothing_else(self) -> None:
+        dll = os.path.join(os.environ["LE1_GAME"], "Binaries", "Win64", "oo2core_8_win64.dll")
+        src = os.path.join(build_mod.MOD_DIR, "CookedPCConsole", build_mod.SHOP_PACKAGE)
+        pkg = le1pkg.read(src, dll)
+        target = pkg.exports[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, build_mod.SHOP_PACKAGE)
+            le1pkg.write_image(pkg, le1pkg.append_exports(pkg, {target.index: b"APTEST"}), out, dll)
+            again = le1pkg.read(out, dll)
+            kept = [c[:2] for c in pkg.header.chunks]
+            self.assertEqual([c[:2] for c in again.header.chunks][:len(kept)], kept)  # the game's chunks stay
+            for a, b in zip(pkg.exports, again.exports):
+                if a.index == target.index:
+                    self.assertEqual(bytes(again.image[b.offset:b.offset + b.size]), b"APTEST")
+                else:
+                    self.assertEqual((a.offset, a.size), (b.offset, b.size), a.name)
 
     def test_relayout(self) -> None:
         """Nothing added or replaced gives the same image; an added name reads back and the tables still parse."""
